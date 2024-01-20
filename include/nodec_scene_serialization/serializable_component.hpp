@@ -1,11 +1,8 @@
 #ifndef NODEC_SCENE_SERIALIZATION__SERIALIZABLE_COMPONENT_HPP_
 #define NODEC_SCENE_SERIALIZATION__SERIALIZABLE_COMPONENT_HPP_
 
-#include "archive_context.hpp"
-
-#include <nodec/type_info.hpp>
-
 #include <cereal/types/polymorphic.hpp>
+#include <nodec/type_info.hpp>
 
 namespace nodec_scene_serialization {
 
@@ -44,20 +41,6 @@ inline BaseSerializableComponent::~BaseSerializableComponent() {}
 #include <cereal/archives/json.hpp>
 #include <cereal/archives/portable_binary.hpp>
 #include <cereal/archives/xml.hpp>
-
-#define CEREAL_FUTURE_EXPERIMENTAL
-#include <cereal/archives/adapters.hpp>
-
-namespace nodec_scene_serialization {
-namespace internal {
-// We couldn't write like this...
-// CEREAL_REGISTER_ARCHIVE(cereal::UserDataAdapter<nodec_scene_serialization::ArchiveContext, cereal::JSONInputArchive>)
-using JSONInputArchiveWithContext = cereal::UserDataAdapter<nodec_scene_serialization::ArchiveContext, cereal::JSONInputArchive>;
-
-} // namespace internal
-} // namespace nodec_scene_serialization
-
-CEREAL_REGISTER_ARCHIVE(nodec_scene_serialization::internal::JSONInputArchiveWithContext)
 
 #define NODEC_SCENE_REGISTER_SERIALIZABLE_COMPONENT(T) \
     CEREAL_REGISTER_TYPE(T) \

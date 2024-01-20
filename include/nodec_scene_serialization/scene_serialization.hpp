@@ -1,14 +1,14 @@
 #ifndef NODEC_SCENE_SERIALIZATION__SCENE_SERIALIZATION_HPP_
 #define NODEC_SCENE_SERIALIZATION__SCENE_SERIALIZATION_HPP_
 
-#include "serializable_component.hpp"
-#include "serializable_entity.hpp"
-
-#include <nodec_scene/scene_registry.hpp>
-
 #include <cassert>
 #include <unordered_map>
 #include <vector>
+
+#include <nodec_scene/scene_registry.hpp>
+
+#include "serializable_component.hpp"
+#include "serializable_entity.hpp"
 
 namespace nodec_scene_serialization {
 
@@ -20,9 +20,25 @@ public:
 private:
     class BaseComponentSerialization {
     public:
+        BaseComponentSerialization(const nodec::type_info &component_type_info,
+                                   const nodec::type_info &serializable_component_type_info)
+            : component_type_info_(component_type_info),
+              serializable_component_type_info_(serializable_component_type_info) {}
+
+        nodec::type_info type_info() const noexcept {
+            return component_type_info_;
+        }
+        nodec::type_info serializable_type_info() const noexcept {
+            return serializable_component_type_info_;
+        }
+
         virtual std::unique_ptr<BaseSerializableComponent> serialize(const void *component) const = 0;
         virtual void emplace_component(const BaseSerializableComponent *, SceneEntity, SceneRegistry &) const = 0;
         virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component() const = 0;
+
+    private:
+        nodec::type_info component_type_info_;
+        nodec::type_info serializable_component_type_info_;
     };
 
     template<typename Component, typename SerializableComponent>
@@ -31,6 +47,9 @@ private:
         using Deserializer = std::function<Component(const SerializableComponent &)>;
 
     public:
+        ComponentSerialization()
+            : BaseComponentSerialization(nodec::type_id<Component>(), nodec::type_id<SerializableComponent>()) {}
+
         std::unique_ptr<BaseSerializableComponent> serialize(const void *component) const override {
             assert(component);
 
@@ -194,6 +213,26 @@ public:
         if (iter == component_dict_.end()) return nullptr;
 
         return iter->second->make_serializable_component();
+    }
+
+    /**
+     * @brief Gets the type info of runtime component from the given serializable component type info.
+     */
+    nodec::type_info get_component_type_info(const nodec::type_info &serializable_component_type_info) const {
+        auto iter = serializable_component_dict_.find(serializable_component_type_info.seq_index());
+        if (iter == serializable_component_dict_.end()) return nodec::type_id<nullptr_t>();
+
+        return iter->second->type_info();
+    }
+
+    /**
+     * @brief Gets the type info of serializable component from the given runtime component type info.
+     */
+    nodec::type_info get_serializable_component_type_info(const nodec::type_info &component_type_info) const {
+        auto iter = component_dict_.find(component_type_info.seq_index());
+        if (iter == component_dict_.end()) return nodec::type_id<nullptr_t>();
+
+        return iter->second->serializable_type_info();
     }
 
 private:
