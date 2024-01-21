@@ -23,8 +23,7 @@ namespace components {
  * However, I think being Serializable and being saved to a file are two separate things,
  * so I thought it might be a Prefab.
  */
-class Prefab : public BaseSerializableComponent {
-public:
+struct Prefab : BaseSerializableComponent {
     Prefab()
         : BaseSerializableComponent(this) {}
 

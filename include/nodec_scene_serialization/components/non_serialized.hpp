@@ -6,8 +6,7 @@
 namespace nodec_scene_serialization {
 namespace components {
 
-class NonSerialized : public BaseSerializableComponent {
-public:
+struct NonSerialized : BaseSerializableComponent {
     NonSerialized()
         : BaseSerializableComponent(this) {}
 
@@ -18,7 +17,6 @@ public:
 } // namespace components
 } // namespace nodec_scene_serialization
 
-CEREAL_REGISTER_TYPE(nodec_scene_serialization::components::NonSerialized)
-CEREAL_REGISTER_POLYMORPHIC_RELATION(nodec_scene_serialization::BaseSerializableComponent, nodec_scene_serialization::components::NonSerialized)
+NODEC_SCENE_REGISTER_SERIALIZABLE_COMPONENT(nodec_scene_serialization::components::NonSerialized)
 
 #endif
