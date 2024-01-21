@@ -7,19 +7,13 @@
 namespace nodec_scene_serialization {
 
 struct BaseSerializableComponent {
-public:
     template<class Derived>
     BaseSerializableComponent(Derived *)
         : type_info_{&nodec::type_id<Derived>()} {
     }
 
-    // BaseSerializableComponent()
-    //     : type_info_{&nodec::type_id<BaseSerializableComponent>()} {
-    // }
-
     virtual ~BaseSerializableComponent() = 0;
 
-public:
     const nodec::type_info &type_info() const noexcept {
         return *type_info_;
     }
