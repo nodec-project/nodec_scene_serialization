@@ -70,7 +70,7 @@ private:
             result.first = std::move(comp);
         }
 
-        std::unique_ptr<BaseSerializableComponent> make_serializable_component() const {
+        std::unique_ptr<BaseSerializableComponent> make_serializable_component() const override {
             return std::make_unique<SerializableComponent>();
         }
 
