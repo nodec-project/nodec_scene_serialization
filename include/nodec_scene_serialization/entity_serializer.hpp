@@ -77,12 +77,13 @@ public:
             auto *hierarchy = scene_registry.try_get_component<Hierarchy>(context.entity);
             if (hierarchy == nullptr) continue;
 
-            auto child = hierarchy->first;
+            // Append the children of the source entity to the stack keeping the order.
+            auto child = hierarchy->last;
             ser_entity_ptr->children.reserve(hierarchy->child_count);
             while (child != null_entity) {
                 stack.push({child, ser_entity_ptr});
                 // The hierarchy should be contained since the parent has the hierarchy.
-                child = scene_registry.get_component<Hierarchy>(child).next;
+                child = scene_registry.get_component<Hierarchy>(child).prev;
             }
         }
 
