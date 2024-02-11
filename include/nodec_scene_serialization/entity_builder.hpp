@@ -38,8 +38,10 @@ public:
         };
 
         std::stack<Context> stack;
-        for (auto &child : source->children) {
-            stack.push({child.get(), target});
+
+        // Append the children of the source entity to the stack keeping the order.
+        for (auto iter = source->children.rbegin(); iter != source->children.rend(); ++iter) {
+            stack.push({iter->get(), target});
         }
 
         while (!stack.empty()) {
@@ -52,8 +54,8 @@ public:
             // The context.parent must exists.
             scene.hierarchy_system().append_child(context.parent, entity);
 
-            for (auto &child : context.entity->children) {
-                stack.push({child.get(), entity});
+            for (auto iter = context.entity->children.rbegin(); iter != context.entity->children.rend(); ++iter) {
+                stack.push({iter->get(), entity});
             }
         }
         scene.registry().emplace_component<EntityBuilt>(target);
