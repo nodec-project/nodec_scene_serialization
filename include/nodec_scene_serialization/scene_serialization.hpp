@@ -46,6 +46,9 @@ private:
         using Serializer = std::function<std::unique_ptr<SerializableComponent>(const Component &)>;
         using Deserializer = std::function<Component(const SerializableComponent &)>;
 
+        static_assert(std::is_base_of<BaseSerializableComponent, SerializableComponent>::value,
+                      "SerializableComponent must be derived from BaseSerializableComponent.");
+
     public:
         ComponentSerialization()
             : BaseComponentSerialization(nodec::type_id<Component>(), nodec::type_id<SerializableComponent>()) {}
