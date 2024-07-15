@@ -36,6 +36,7 @@ private:
         virtual void emplace_or_replace_component(const BaseSerializableComponent *, SceneEntity, SceneRegistry &) const = 0;
         virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component() const = 0;
         virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component(const void *component) const = 0;
+        virtual void assign_component(const BaseSerializableComponent *, void *) const = 0;
 
     private:
         nodec::type_info component_type_info_;
@@ -83,6 +84,16 @@ private:
             auto result = scene_registry.emplace_component<Component>(entity);
             auto comp = deserializer(*static_cast<const SerializableComponent *>(source));
             result.first = std::move(comp);
+        }
+
+        void assign_component(const BaseSerializableComponent *source,
+                              void *target_component) const override {
+            assert(source);
+            assert(source->type_info() == nodec::type_id<SerializableComponent>());
+            assert(target_component);
+
+            auto comp = deserializer(*static_cast<const SerializableComponent *>(source));
+            *static_cast<Component *>(target_component) = std::move(comp);
         }
 
         std::unique_ptr<BaseSerializableComponent> make_serializable_component() const override {
@@ -234,6 +245,20 @@ public:
         serialization->emplace_or_replace_component(source, target, scene_registry);
     }
 
+    void assign_component(const BaseSerializableComponent *source,
+                          const nodec::type_info &target_component_type_info,
+                          void *target_component) const {
+        if (!source) return;
+
+        auto iter = serializable_component_dict_.find(source->type_info().seq_index());
+        if (iter == serializable_component_dict_.end()) return;
+
+        auto &serialization = iter->second;
+        if (serialization->type_info() != target_component_type_info) return;
+
+        serialization->assign_component(source, target_component);
+    }
+
     /**
      * @brief Makes the serializable component resolved from the given runtime component type.
      */
@@ -246,10 +271,10 @@ public:
 
     /**
      * @brief Makes the serializable component resolved from the given runtime component.
-     * 
-     * @param type_info 
-     * @param component 
-     * @return std::unique_ptr<BaseSerializableComponent> 
+     *
+     * @param type_info
+     * @param component
+     * @return std::unique_ptr<BaseSerializableComponent>
      */
     std::unique_ptr<BaseSerializableComponent>
     make_serializable_component(
