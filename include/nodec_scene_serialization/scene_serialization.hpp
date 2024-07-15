@@ -32,9 +32,10 @@ private:
             return serializable_component_type_info_;
         }
 
-        virtual std::unique_ptr<BaseSerializableComponent> serialize(const void *component) const = 0;
         virtual void emplace_component(const BaseSerializableComponent *, SceneEntity, SceneRegistry &) const = 0;
+        virtual void emplace_or_replace_component(const BaseSerializableComponent *, SceneEntity, SceneRegistry &) const = 0;
         virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component() const = 0;
+        virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component(const void *component) const = 0;
 
     private:
         nodec::type_info component_type_info_;
@@ -53,15 +54,16 @@ private:
         ComponentSerialization()
             : BaseComponentSerialization(nodec::type_id<Component>(), nodec::type_id<SerializableComponent>()) {}
 
-        std::unique_ptr<BaseSerializableComponent> serialize(const void *component) const override {
+        std::unique_ptr<BaseSerializableComponent> make_serializable_component(const void *component) const override {
             assert(component);
 
             return serializer(*static_cast<const Component *>(component));
         }
 
-        void emplace_component(const BaseSerializableComponent *serializable_component, SceneEntity entity, SceneRegistry &scene_registry) const override {
-            assert(serializable_component);
-            assert(serializable_component->type_info() == nodec::type_id<SerializableComponent>());
+        void emplace_component(const BaseSerializableComponent *source,
+                               SceneEntity entity, SceneRegistry &scene_registry) const override {
+            assert(source);
+            assert(source->type_info() == nodec::type_id<SerializableComponent>());
 
             auto result = scene_registry.emplace_component<Component>(entity);
             if (!result.second) {
@@ -69,7 +71,17 @@ private:
                 return;
             }
 
-            auto comp = deserializer(*static_cast<const SerializableComponent *>(serializable_component));
+            auto comp = deserializer(*static_cast<const SerializableComponent *>(source));
+            result.first = std::move(comp);
+        }
+
+        void emplace_or_replace_component(const BaseSerializableComponent *source,
+                                          SceneEntity entity, SceneRegistry &scene_registry) const override {
+            assert(source);
+            assert(source->type_info() == nodec::type_id<SerializableComponent>());
+
+            auto result = scene_registry.emplace_component<Component>(entity);
+            auto comp = deserializer(*static_cast<const SerializableComponent *>(source));
             result.first = std::move(comp);
         }
 
@@ -151,7 +163,7 @@ public:
             auto &serialization = iter->second;
             assert(static_cast<bool>(serialization));
 
-            auto serializable_component = serialization->serialize(comp);
+            auto serializable_component = serialization->make_serializable_component(comp);
             serializable_entity->components.push_back(std::move(serializable_component));
         });
 
@@ -208,6 +220,20 @@ public:
         }
     }
 
+    void emplace_or_replace_component(const BaseSerializableComponent *source,
+                                      const nodec_scene::SceneEntity &target,
+                                      nodec_scene::SceneRegistry &scene_registry) const {
+        if (!source) return;
+
+        auto iter = serializable_component_dict_.find(source->type_info().seq_index());
+        if (iter == serializable_component_dict_.end()) return;
+
+        auto &serialization = iter->second;
+        assert(static_cast<bool>(serialization));
+
+        serialization->emplace_or_replace_component(source, target, scene_registry);
+    }
+
     /**
      * @brief Makes the serializable component resolved from the given runtime component type.
      */
@@ -216,6 +242,16 @@ public:
         if (iter == component_dict_.end()) return nullptr;
 
         return iter->second->make_serializable_component();
+    }
+
+    template<typename Component>
+    std::unique_ptr<BaseSerializableComponent>
+    make_serializable_component(
+        const Component &component) const {
+        auto iter = component_dict_.find(nodec::type_seq_index<Component>::value());
+        if (iter == component_dict_.end()) return nullptr;
+
+        return iter->second->make_serializable_component(&component);
     }
 
     /**
