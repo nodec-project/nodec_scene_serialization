@@ -244,14 +244,20 @@ public:
         return iter->second->make_serializable_component();
     }
 
-    template<typename Component>
+    /**
+     * @brief Makes the serializable component resolved from the given runtime component.
+     * 
+     * @param type_info 
+     * @param component 
+     * @return std::unique_ptr<BaseSerializableComponent> 
+     */
     std::unique_ptr<BaseSerializableComponent>
     make_serializable_component(
-        const Component &component) const {
-        auto iter = component_dict_.find(nodec::type_seq_index<Component>::value());
+        const nodec::type_info &type_info, void *component) const {
+        auto iter = component_dict_.find(type_info.seq_index());
         if (iter == component_dict_.end()) return nullptr;
 
-        return iter->second->make_serializable_component(&component);
+        return iter->second->make_serializable_component(component);
     }
 
     /**
