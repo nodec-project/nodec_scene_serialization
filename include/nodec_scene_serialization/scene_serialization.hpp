@@ -17,13 +17,20 @@ public:
     using SceneRegistry = nodec_scene::SceneRegistry;
     using SceneEntity = nodec_scene::SceneEntity;
 
-private:
+    /**
+     * @brief Base class for component serialization.
+     *
+     * This class is exposed publicly to allow callback-based iteration
+     * over registered serializable components.
+     */
     class BaseComponentSerialization {
     public:
         BaseComponentSerialization(const nodec::type_info &component_type_info,
                                    const nodec::type_info &serializable_component_type_info)
             : component_type_info_(component_type_info),
               serializable_component_type_info_(serializable_component_type_info) {}
+
+        virtual ~BaseComponentSerialization() = default;
 
         nodec::type_info type_info() const noexcept {
             return component_type_info_;
@@ -32,9 +39,13 @@ private:
             return serializable_component_type_info_;
         }
 
+        virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component() const = 0;
+
+    protected:
+        friend class SceneSerialization;
+
         virtual void emplace_component(const BaseSerializableComponent *, SceneEntity, SceneRegistry &) const = 0;
         virtual void emplace_or_replace_component(const BaseSerializableComponent *, SceneEntity, SceneRegistry &) const = 0;
-        virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component() const = 0;
         virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component(const void *component) const = 0;
         virtual void assign_component(const BaseSerializableComponent *, void *) const = 0;
 
@@ -42,6 +53,8 @@ private:
         nodec::type_info component_type_info_;
         nodec::type_info serializable_component_type_info_;
     };
+
+private:
 
     template<typename Component, typename SerializableComponent>
     class ComponentSerialization : public BaseComponentSerialization {
@@ -303,6 +316,28 @@ public:
         if (iter == component_dict_.end()) return nodec::type_id<nullptr_t>();
 
         return iter->second->serializable_type_info();
+    }
+
+    /**
+     * @brief Iterates over all registered component serializations.
+     *
+     * The callback is invoked for each registered component serialization.
+     * This allows external code to enumerate all registered components without
+     * exposing internal container details.
+     *
+     * @note The callback must not call any method that modifies the registration
+     *       (e.g., register_component) to avoid undefined behavior.
+     *
+     * @param func Callback function with signature:
+     *   @code{.cpp}
+     *   void(const BaseComponentSerialization&);
+     *   @endcode
+     */
+    template<typename Func>
+    void for_each_component_serialization(Func &&func) const {
+        for (const auto &[index, serialization] : serializable_component_dict_) {
+            func(*serialization);
+        }
     }
 
 private:
