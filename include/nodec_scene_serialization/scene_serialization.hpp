@@ -17,13 +17,20 @@ public:
     using SceneRegistry = nodec_scene::SceneRegistry;
     using SceneEntity = nodec_scene::SceneEntity;
 
-private:
+    /**
+     * @brief Base class for component serialization.
+     *
+     * This class is exposed publicly to allow callback-based iteration
+     * over registered serializable components.
+     */
     class BaseComponentSerialization {
     public:
         BaseComponentSerialization(const nodec::type_info &component_type_info,
                                    const nodec::type_info &serializable_component_type_info)
             : component_type_info_(component_type_info),
               serializable_component_type_info_(serializable_component_type_info) {}
+
+        virtual ~BaseComponentSerialization() = default;
 
         nodec::type_info type_info() const noexcept {
             return component_type_info_;
@@ -32,9 +39,14 @@ private:
             return serializable_component_type_info_;
         }
 
+        virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component() const = 0;
+
+    protected:
+        friend class SceneSerialization;
+
         virtual void emplace_component(const BaseSerializableComponent *, SceneEntity, SceneRegistry &) const = 0;
         virtual void emplace_or_replace_component(const BaseSerializableComponent *, SceneEntity, SceneRegistry &) const = 0;
-        virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component() const = 0;
+        virtual void remove_component(SceneEntity, SceneRegistry &) const = 0;
         virtual std::unique_ptr<BaseSerializableComponent> make_serializable_component(const void *component) const = 0;
         virtual void assign_component(const BaseSerializableComponent *, void *) const = 0;
 
@@ -42,6 +54,8 @@ private:
         nodec::type_info component_type_info_;
         nodec::type_info serializable_component_type_info_;
     };
+
+private:
 
     template<typename Component, typename SerializableComponent>
     class ComponentSerialization : public BaseComponentSerialization {
@@ -84,6 +98,10 @@ private:
             auto result = scene_registry.emplace_component<Component>(entity);
             auto comp = deserializer(*static_cast<const SerializableComponent *>(source));
             result.first = std::move(comp);
+        }
+
+        void remove_component(SceneEntity entity, SceneRegistry &scene_registry) const override {
+            scene_registry.remove_component<Component>(entity);
         }
 
         void assign_component(const BaseSerializableComponent *source,
@@ -245,6 +263,48 @@ public:
         serialization->emplace_or_replace_component(source, target, scene_registry);
     }
 
+    /**
+     * @brief Removes a component from an entity by its runtime type info.
+     *
+     * @param component_type_info The runtime type info of the component to remove.
+     * @param entity The entity to remove the component from.
+     * @param scene_registry The scene registry.
+     * @return true if the component was found and removed, false otherwise.
+     */
+    bool remove_component_by_type(const nodec::type_info &component_type_info,
+                                  const nodec_scene::SceneEntity &entity,
+                                  nodec_scene::SceneRegistry &scene_registry) const {
+        auto iter = component_dict_.find(component_type_info.seq_index());
+        if (iter == component_dict_.end()) return false;
+
+        auto &serialization = iter->second;
+        assert(static_cast<bool>(serialization));
+
+        serialization->remove_component(entity, scene_registry);
+        return true;
+    }
+
+    /**
+     * @brief Removes a component from an entity by its runtime type sequence index.
+     *
+     * @param type_seq_index The runtime type sequence index of the component.
+     * @param entity The entity to remove the component from.
+     * @param scene_registry The scene registry.
+     * @return true if the component was found and removed, false otherwise.
+     */
+    bool remove_component_by_type_index(nodec::type_seq_index_type type_seq_index,
+                                        const nodec_scene::SceneEntity &entity,
+                                        nodec_scene::SceneRegistry &scene_registry) const {
+        auto iter = component_dict_.find(type_seq_index);
+        if (iter == component_dict_.end()) return false;
+
+        auto &serialization = iter->second;
+        assert(static_cast<bool>(serialization));
+
+        serialization->remove_component(entity, scene_registry);
+        return true;
+    }
+
     void assign_component(const BaseSerializableComponent *source,
                           const nodec::type_info &target_component_type_info,
                           void *target_component) const {
@@ -303,6 +363,28 @@ public:
         if (iter == component_dict_.end()) return nodec::type_id<nullptr_t>();
 
         return iter->second->serializable_type_info();
+    }
+
+    /**
+     * @brief Iterates over all registered component serializations.
+     *
+     * The callback is invoked for each registered component serialization.
+     * This allows external code to enumerate all registered components without
+     * exposing internal container details.
+     *
+     * @note The callback must not call any method that modifies the registration
+     *       (e.g., register_component) to avoid undefined behavior.
+     *
+     * @param func Callback function with signature:
+     *   @code{.cpp}
+     *   void(const BaseComponentSerialization&);
+     *   @endcode
+     */
+    template<typename Func>
+    void for_each_component_serialization(Func &&func) const {
+        for (const auto &[index, serialization] : serializable_component_dict_) {
+            func(*serialization);
+        }
     }
 
 private:
